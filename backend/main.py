@@ -29,11 +29,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://demo-tau-six-58.vercel.app",
-        "https://demo-fmjuzxoj1-chethans-projects-92437806.vercel.app",
+        "https://demo-fmjuzxoj1-sriteja-projects-92437806.vercel.app",
         "http://localhost:5173",
         *([FRONTEND_URL] if FRONTEND_URL else []),
     ],
-    allow_origin_regex=r"^https://demo-[a-z0-9-]+-chethans-projects-92437806\.vercel\.app$",
+    allow_origin_regex=r"^https://demo-[a-z0-9-]+-sriteja-projects-92437806\.vercel\.app$",
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
