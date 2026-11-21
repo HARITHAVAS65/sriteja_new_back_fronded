@@ -55,3 +55,4 @@ Copy these five values from the PostgreSQL provider's connection settings:
 - `DB_NAME`: database name
 - `DB_USER`: database username
 - `DB_PASSWORD`: database password
+# sriteja_new_back_fronded
