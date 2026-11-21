@@ -38,7 +38,7 @@ It is not an authentication system; do not use real passwords.
   `DB_NAME`, `DB_USER`, and `DB_PASSWORD` individually from your PostgreSQL
   provider, and set `FRONTEND_URL` to the Vercel site origin (for example,
   `https://your-app.vercel.app`). The API also allows preview origins matching
-  `https://demo-<deployment>-chethans-projects-92437806.vercel.app`.
+  `https://demo-<deployment>-sritejas-projects-92437806.vercel.app`.
 - **Vercel project:** Root Directory `frontend`; Framework Preset `Vite`;
   Build Command `npm run build`; Output Directory `dist`. Set `VITE_API_URL`
   to the Render service base URL without a trailing slash.
