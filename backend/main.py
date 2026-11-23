@@ -1,158 +1,85 @@
-import logging
 import os
-from pathlib import Path
-from typing import Annotated, NoReturn
-
-import psycopg
-import uvicorn
+from datetime import datetime, timezone
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Path as PathParameter
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel
+from supabase import create_client, Client
 
-ROOT_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(ROOT_ENV_PATH, override=True)
+# 1. Load SUPABASE_URL and SUPABASE_SECRET_KEY from your root .env file
+load_dotenv()
 
-SCHEMA_SQL_PATH = Path(__file__).resolve().parent / "schema.sql"
-SCHEMA_SQL = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY")
 
-DB_HOST = os.getenv("DB_HOST", "").strip()
-DB_PORT = os.getenv("DB_PORT", "5432").strip()
-DB_NAME = os.getenv("DB_NAME", "").strip()
-DB_USER = os.getenv("DB_USER", "").strip()
-DB_PASSWORD = os.getenv("DB_PASSWORD", "")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
+if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
+    raise RuntimeError("Missing SUPABASE_URL or SUPABASE_SECRET_KEY in .env file")
 
+# 2. Initialize Supabase and FastAPI
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_SECRET_KEY)
 app = FastAPI(title="Record Keeper API")
 
+# Allow your Next.js frontend (localhost:3000) to call this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://demo-tau-six-58.vercel.app",
-        "https://demo-fmjuzxoj1-sriteja-projects-92437806.vercel.app",
-        "http://localhost:5173",
-        *([FRONTEND_URL] if FRONTEND_URL else []),
-    ],
-    allow_origin_regex=r"^https://demo-[a-z0-9-]+-sriteja-projects-92437806\.vercel\.app$",
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
+# 3. Request model matching your Supabase "records" table
+class RecordCreate(BaseModel):
+    username: str
+    demo_value: str | None = ""
 
-class RecordInput(BaseModel):
-    username: str = Field(min_length=1, max_length=80)
-    demo_value: str = Field(min_length=1, max_length=500)
+# 4. API Routes connected to your Supabase "records" table
+@app.get("/")
+def root():
+    return {"status": "FastAPI connected to Supabase!"}
 
-    @field_validator("username", "demo_value", mode="before")
-    @classmethod
-    def trim_value(cls, value: object) -> object:
-        if isinstance(value, str):
-            return value.strip()
-        return value
-
-
-def connect_to_database() -> psycopg.Connection:
-    credentials = (DB_HOST, DB_NAME, DB_USER, DB_PASSWORD)
-    placeholders = {
-        "your_database_host",
-        "your_database_name",
-        "your_database_username",
-        "your_database_password",
-    }
-    if not all(credentials) or any(value in placeholders for value in credentials):
-        raise HTTPException(
-            status_code=503,
-            detail="Database is not configured. Set DB_HOST, DB_PORT, DB_NAME, DB_USER, and DB_PASSWORD.",
-        )
-    try:
-        port = int(DB_PORT)
-    except ValueError as error:
-        raise HTTPException(status_code=503, detail="DB_PORT must be a valid port number.") from error
-    if not 1 <= port <= 65535:
-        raise HTTPException(status_code=503, detail="DB_PORT must be between 1 and 65535.")
-
-    return psycopg.connect(
-        host=DB_HOST,
-        port=port,
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        sslmode="require",
-        connect_timeout=10,
+@app.get("/records")
+def get_all_records():
+    response = (
+        supabase.table("records")
+        .select("*")
+        .order("updated_at", desc=True)
+        .execute()
     )
-
-
-def create_records_table(connection: psycopg.Connection) -> None:
-    connection.execute(SCHEMA_SQL)
-
-
-def database_unavailable(error: psycopg.Error) -> NoReturn:
-    error_type = type(error).__name__
-    logging.error("PostgreSQL operation failed (%s)", error_type)
-    raise HTTPException(
-        status_code=503,
-        detail=(
-            f"PostgreSQL connection failed ({error_type}). Check DB_HOST, DB_PORT, "
-            "DB_NAME, DB_USER, DB_PASSWORD, and the provider's SSL/network settings."
-        ),
-    )
-
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
-
-
-@app.post("/records")
-def save_record(record: RecordInput) -> dict[str, str]:
-    try:
-        with connect_to_database() as connection:
-            create_records_table(connection)
-            saved_record = connection.execute(
-                """
-                INSERT INTO records (username, demo_value)
-                VALUES (%s, %s)
-                ON CONFLICT (username) DO UPDATE
-                SET demo_value = EXCLUDED.demo_value,
-                    updated_at = CURRENT_TIMESTAMP
-                RETURNING username, demo_value
-                """,
-                (record.username, record.demo_value),
-            ).fetchone()
-    except psycopg.Error as error:
-        database_unavailable(error)
-
-    return {"username": saved_record[0], "demo_value": saved_record[1]}
-
+    return response.data
 
 @app.get("/records/{username}")
-def retrieve_record(
-    username: Annotated[str, PathParameter(min_length=1, max_length=80)],
-) -> dict[str, str]:
-    username = username.strip()
-    if not username:
-        raise HTTPException(status_code=422, detail="Username cannot be empty.")
-
-    try:
-        with connect_to_database() as connection:
-            create_records_table(connection)
-            record = connection.execute(
-                "SELECT username, demo_value FROM records WHERE username = %s",
-                (username,),
-            ).fetchone()
-    except psycopg.Error as error:
-        database_unavailable(error)
-
-    if record is None:
-        raise HTTPException(status_code=404, detail="No record found for that username.")
-
-    return {"username": record[0], "demo_value": record[1]}
-
-
-if __name__ == "__main__":
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", "8000")),
+def get_record(username: str):
+    response = (
+        supabase.table("records")
+        .select("*")
+        .eq("username", username)
+        .execute()
     )
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Record not found")
+    return response.data[0]
+
+@app.post("/records")
+def create_or_update_record(item: RecordCreate):
+    data = {
+        "username": item.username.strip(),
+        "demo_value": item.demo_value.strip() if item.demo_value else "",
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    response = supabase.table("records").upsert(data).execute()
+    return response.data[0]
+
+@app.delete("/records/{username}")
+def delete_record(username: str):
+    response = (
+        supabase.table("records")
+        .delete()
+        .eq("username", username)
+        .execute()
+    )
+    return {"deleted": username, "data": response.data}
+
+@app.get("/instruments")
+def get_instruments():
+    return supabase.table("instruments").select("*").execute().data

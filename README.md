@@ -34,11 +34,11 @@ It is not an authentication system; do not use real passwords.
 
 - **Render web service:** Root Directory `backend`; Build Command
   `pip install -r requirements.txt`; Start Command
-  `uvicorn main:app --host 0.0.0.0 --port $PORT`. Set `DB_HOST`, `DB_PORT`,
+  `uvicorn main:app --host 0.0.0.0 --port 8000`. Set `DB_HOST`, `DB_PORT`,
   `DB_NAME`, `DB_USER`, and `DB_PASSWORD` individually from your PostgreSQL
   provider, and set `FRONTEND_URL` to the Vercel site origin (for example,
   `https://your-app.vercel.app`). The API also allows preview origins matching
-  `https://demo-<deployment>-sritejas-projects-92437806.vercel.app`.
+  `https://sriteja-new-back-fronded-i5g3hzps6-kandhala95-6538.vercel.app`.
 - **Vercel project:** Root Directory `frontend`; Framework Preset `Vite`;
   Build Command `npm run build`; Output Directory `dist`. Set `VITE_API_URL`
   to the Render service base URL without a trailing slash.
@@ -50,9 +50,9 @@ is ignored by Git and is not needed in production.
 
 Copy these five values from the PostgreSQL provider's connection settings:
 
-- `DB_HOST`: database server hostname
-- `DB_PORT`: PostgreSQL port (usually `5432`)
-- `DB_NAME`: database name
-- `DB_USER`: database username
-- `DB_PASSWORD`: database password
+- `DB_HOST`: aws-0-ap-southeast-2.pooler.supabase.com
+- `DB_PORT`: 5432
+- `DB_NAME`: postgres
+- `DB_USER`: postgres.cyruxudqeykonnmkplpl
+- `DB_PASSWORD`: 2Nikky@199719
 # sriteja_new_back_fronded
